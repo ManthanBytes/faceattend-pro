@@ -101,6 +101,11 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_sess_tea  ON sessions(teacher_id, active);
         CREATE INDEX IF NOT EXISTS idx_sess_div  ON sessions(div_id, sem, active);
         CREATE INDEX IF NOT EXISTS idx_tt_div    ON timetable(div_id, sem, day);
+        CREATE TABLE IF NOT EXISTS qr_tokens(
+            token TEXT PRIMARY KEY,
+            session_id TEXT,
+            issued_at REAL
+        );
     ''')
     c.commit()
     # Migration: add cancel_reason if not exists
@@ -354,12 +359,17 @@ def close_qr(sid):
 def gen_qr(sid):
     c=get_db()
     sess=c.execute('SELECT * FROM sessions WHERE id=? AND active=1 AND qr_open=1',(sid,)).fetchone()
-    cfg_r={x['k']:x['v'] for x in c.execute('SELECT * FROM cfg').fetchall()}; c.close()
-    if not sess: return jsonify({'ok':False,'msg':'Session not active'})
-    for t in [k for k,v in list(QR_TOKENS.items()) if time.time()-v['issued_at']>600]: QR_TOKENS.pop(t,None)
-    token=secrets.token_urlsafe(20)
-    QR_TOKENS[token]={'session_id':sid,'issued_at':time.time()}
-    return jsonify({'ok':True,'token':token,'lifetime':int(cfg_r.get('qr_lifetime',45))})
+    cfg_r={x['k']:x['v'] for x in c.execute('SELECT * FROM cfg').fetchall()}
+    if not sess: c.close(); return jsonify({'ok':False,'msg':'Session not active'})
+    lifetime=int(cfg_r.get('qr_lifetime',45))
+    # Clean old tokens
+    c.execute('DELETE FROM qr_tokens WHERE issued_at<?',(time.time()-600,))
+    # Simple uppercase alphanumeric token (easy to type, easy to scan)
+    import random,string
+    token=''.join(random.choices(string.ascii_uppercase+string.digits,k=8))
+    c.execute('INSERT OR REPLACE INTO qr_tokens VALUES(?,?,?)',(token,sid,time.time()))
+    c.commit(); c.close()
+    return jsonify({'ok':True,'token':token,'lifetime':lifetime})
 
 @app.route('/api/sessions/my-active')
 def my_active():
@@ -416,20 +426,31 @@ def verify_qr():
     For QR-only mode → marks immediately.
     """
     d=request.json
-    token=re.sub(r'\s+','',str(d.get('token','')))
+    raw_token=str(d.get('token',''))
+    # Strip whitespace, extract if URL contains ?token=XXX
+    import urllib.parse
+    if '?' in raw_token or 'token=' in raw_token:
+        try:
+            parsed=urllib.parse.urlparse(raw_token)
+            qs=urllib.parse.parse_qs(parsed.query)
+            raw_token=qs.get('token',[''])[0] or raw_token
+        except: pass
+    token=re.sub(r'\s+','',raw_token).upper()
     student_id=d.get('student_id')
 
-    if not token or token not in QR_TOKENS:
-        return jsonify({'ok':False,'msg':'Invalid token — scan latest QR code','reason':'bad_token'})
-
-    rec=QR_TOKENS[token]
     c=get_db()
     cfg_r={x['k']:x['v'] for x in c.execute('SELECT * FROM cfg').fetchall()}
     lifetime=int(cfg_r.get('qr_lifetime',45))
 
+    rec=c.execute('SELECT * FROM qr_tokens WHERE token=?',(token,)).fetchone()
+    if not rec:
+        c.close()
+        return jsonify({'ok':False,'msg':'Invalid token — scan latest QR code','reason':'bad_token'})
+    rec=dict(rec)
+
     if time.time()-rec['issued_at']>lifetime:
-        QR_TOKENS.pop(token,None); c.close()
-        return jsonify({'ok':False,'msg':'QR expired — scan new code','reason':'expired'})
+        c.execute('DELETE FROM qr_tokens WHERE token=?',(token,)); c.commit(); c.close()
+        return jsonify({'ok':False,'msg':'QR expired — please scan new code','reason':'expired'})
 
     sid=rec['session_id']
     sess=c.execute('SELECT * FROM sessions WHERE id=? AND active=1 AND qr_open=1',(sid,)).fetchone()

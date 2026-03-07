@@ -257,25 +257,42 @@ body.dark .sb-theme-btn{background:#334155;border-color:#475569}
 #sbOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:498;backdrop-filter:blur(2px)}
 #sbOverlay.show{display:block}
 @media(max-width:768px){
-  #mobileBar{display:flex}
-  #appW{flex-direction:column;padding-top:52px}
-  .sb{position:fixed;left:-260px;top:0;width:250px;height:100vh;z-index:499;transition:left .25s cubic-bezier(.4,0,.2,1);box-shadow:none}
-  .sb.open{left:0;box-shadow:var(--sh2)}
-  .mc{padding:16px 14px;min-height:calc(100vh - 52px)}
-  .grid2{grid-template-columns:1fr}
-  .grid3{grid-template-columns:1fr 1fr}
-  .stat-grid{grid-template-columns:repeat(2,1fr)}
+  #mobileBar{display:flex!important}
+  #appW{flex-direction:column!important;padding-top:52px!important;min-height:100vh}
+  /* Sidebar hidden by default on mobile */
+  .sb{
+    position:fixed!important;
+    left:-270px!important;
+    top:0!important;
+    width:260px!important;
+    height:100vh!important;
+    z-index:9999!important;
+    transition:left .28s cubic-bezier(.4,0,.2,1)!important;
+    box-shadow:none!important;
+    overflow-y:auto!important;
+  }
+  /* Sidebar open state */
+  .sb.mob-open{
+    left:0!important;
+    box-shadow:2px 0 24px rgba(0,0,0,.35)!important;
+  }
+  .mc{padding:16px 14px!important;width:100%!important}
+  .grid2{grid-template-columns:1fr!important}
+  .grid3{grid-template-columns:1fr 1fr!important}
+  .stat-grid{grid-template-columns:repeat(2,1fr)!important}
   .ph{flex-direction:column;gap:8px}
   .ptitle{font-size:18px}
-  .modal{width:95vw;max-width:420px;max-height:92vh;overflow-y:auto}
-  .modal.xl{width:97vw}
-  .tt-row{grid-template-columns:40px 70px 1fr 90px!important;font-size:11.5px}
-  .face-wrap{width:180px;height:180px}
-  .g2{grid-template-columns:1fr}
+  .modal{width:95vw!important;max-width:420px!important;max-height:90vh!important;overflow-y:auto!important}
+  .modal.xl,.modal.wide{width:97vw!important;max-width:none!important}
+  .tt-row{grid-template-columns:36px 65px 1fr 80px!important;font-size:11px!important}
+  .face-wrap{width:200px!important;height:200px!important}
+  .g2,.grid2{grid-template-columns:1fr!important}
+  .g3{grid-template-columns:1fr 1fr!important}
 }
 @media(min-width:769px){
   #mobileBar{display:none!important}
-  .sb{left:0!important;position:sticky!important}
+  #sbOverlay{display:none!important}
+  .sb{left:0!important;position:sticky!important;transform:none!important}
 }
 </style>
 </head>
@@ -1265,11 +1282,15 @@ function startQRScanLoop(){
     if(typeof jsQR!=='undefined'){
       const code=jsQR(imgData.data,imgData.width,imgData.height,{inversionAttempts:'dontInvert'})
       if(code&&code.data){
-        const url=code.data
-        let token=url
-        // Extract token from URL like ?token=XXXX
-        try{const u=new URL(url);token=u.searchParams.get('token')||url}catch(e){}
-        if(token&&token.trim()){
+        const raw=code.data.trim()
+        let token=raw
+        // If it's a URL with ?token=X, extract it; otherwise use raw as token
+        if(raw.includes('token=')){
+          try{const u=new URL(raw);token=u.searchParams.get('token')||raw}catch(e){}
+        }
+        // Clean up — uppercase, no spaces
+        token=token.replace(/\s+/g,'').toUpperCase()
+        if(token&&token.length>=4&&token.length<=20){
           stopQRScanCamera()
           const st=$('qrScanStatus'); if(st) st.textContent='✅ QR Detected!'
           // Auto-submit
@@ -1460,18 +1481,28 @@ async function refreshQR(){
 }
 
 function renderQR(token){
-  const url=location.origin+'?token='+encodeURIComponent(token)
+  // QR encodes ONLY the token string — no URL — so scanner gets plain text
   const cvs=$('qrCvs'); const ctx=cvs.getContext('2d')
   ctx.fillStyle='#fff'; ctx.fillRect(0,0,200,200)
   try{
     const tmp=document.createElement('div')
-    new QRCode(tmp,{text:url,width:200,height:200,colorDark:'#0f172a',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M})
+    new QRCode(tmp,{text:token,width:200,height:200,colorDark:'#0f172a',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M})
     setTimeout(()=>{
       const img=tmp.querySelector('img')
-      if(!img) return
-      const i=new Image(); i.onload=()=>{ctx.fillStyle='#fff';ctx.fillRect(0,0,200,200);ctx.drawImage(i,0,0,200,200)}; i.src=img.src
+      if(!img){ renderQRFallback(token,cvs,ctx); return }
+      const i=new Image()
+      i.onload=()=>{ctx.fillStyle='#fff';ctx.fillRect(0,0,200,200);ctx.drawImage(i,0,0,200,200)}
+      i.onerror=()=>renderQRFallback(token,cvs,ctx)
+      i.src=img.src
     },80)
-  }catch(e){ctx.fillStyle='#0f172a';ctx.font='bold 12px monospace';ctx.textAlign='center';ctx.fillText(token.slice(0,22),100,100)}
+  }catch(e){ renderQRFallback(token,cvs,ctx) }
+}
+function renderQRFallback(token,cvs,ctx){
+  ctx.fillStyle='#fff'; ctx.fillRect(0,0,200,200)
+  ctx.fillStyle='#0f172a'; ctx.font='bold 28px monospace'; ctx.textAlign='center'
+  ctx.fillText(token,100,110)
+  ctx.font='11px sans-serif'; ctx.fillStyle='#64748b'
+  ctx.fillText('Type this token',100,145)
 }
 
 function startQRCountdown(secs){
@@ -1674,6 +1705,21 @@ function sumTab(t){
 }
 
 // ── MARK ATTENDANCE — STUDENT 2-STEP FLOW ─────────────────────
+
+async function manualTokenSubmit(){
+  const token=(document.getElementById('manualToken')?.value||'').trim().toUpperCase()
+  const errEl=$('manualTokenErr')
+  if(!token){if(errEl)errEl.textContent='Enter token';return}
+  if(errEl)errEl.textContent=''
+  try{
+    const r=await API.post('/api/verify-qr',{token,student_id:CU.id})
+    if(!r.ok){if(errEl)errEl.textContent=r.msg;return}
+    if(r.already||r.marked){toast('✅ '+r.msg);return}
+    verifiedSession=r.session||r
+    // Open mark modal at face step
+    openMarkModal(null,verifiedSession?.subject||'Session','face')
+  }catch(e){if(errEl)errEl.textContent='Connection error'}
+}
 async function loadMark(){
   $('markArea').innerHTML='<div style="color:var(--ink3);padding:12px">Checking active sessions...</div>'
   try{
@@ -1682,7 +1728,21 @@ async function loadMark(){
     const hasFace=!!(CU.face||CU.face_img)
 
     if(!sessions.length){
-      $('markArea').innerHTML=`<div class="al al-amber">⏳ No active sessions for your class right now.</div><div class="card" style="text-align:center;padding:40px"><div style="font-size:52px;margin-bottom:12px">🕐</div><div style="font-weight:700;font-size:17px;margin-bottom:8px">Waiting for Session</div><div style="font-size:13px;color:var(--ink3);margin-bottom:20px">Your teacher will start a session and display the QR code.</div><button class="btn btn-out btn-sm" onclick="loadMark()">↺ Check Again</button></div>`
+      $('markArea').innerHTML=`
+        <div class="al al-amber">⏳ No active sessions for your class right now.</div>
+        <div class="card" style="text-align:center;padding:30px;margin-bottom:12px">
+          <div style="font-size:48px;margin-bottom:10px">🕐</div>
+          <div style="font-weight:700;font-size:16px;margin-bottom:6px">Waiting for Session</div>
+          <div style="font-size:13px;color:var(--ink3);margin-bottom:16px">Your teacher will start a session and display the QR code.</div>
+          <button class="btn btn-out btn-sm" onclick="loadMark()">↺ Check Again</button>
+        </div>
+        <div class="card">
+          <div class="card-title">📲 Got a token? Mark manually</div>
+          <div style="font-size:12px;color:var(--ink3);margin-bottom:10px">If your teacher gave you a token or QR is visible, enter it here:</div>
+          <div class="fg"><input id="manualToken" placeholder="Enter token (e.g. AB12CD34)" style="font-family:'JetBrains Mono',monospace;font-size:16px;letter-spacing:2px;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+          <button class="btn btn-blue btn-w" onclick="manualTokenSubmit()">Verify Token →</button>
+          <div class="err" id="manualTokenErr" style="margin-top:6px"></div>
+        </div>`
       return
     }
 
@@ -2159,12 +2219,12 @@ function toggleTheme(){
 function toggleMobileSidebar(){
   const sb=document.querySelector('.sb')
   const ov=$('sbOverlay')
-  const isOpen=sb&&sb.classList.contains('open')
-  if(isOpen){ sb.classList.remove('open');if(ov)ov.classList.remove('show') }
-  else { if(sb)sb.classList.add('open');if(ov)ov.classList.add('show') }
+  const isOpen=sb&&sb.classList.contains('mob-open')
+  if(isOpen){ sb.classList.remove('mob-open');if(ov)ov.classList.remove('show') }
+  else { if(sb)sb.classList.add('mob-open');if(ov)ov.classList.add('show') }
 }
 function closeMobileSidebar(){
-  const sb=document.querySelector('.sb'); if(sb)sb.classList.remove('open')
+  const sb=document.querySelector('.sb'); if(sb)sb.classList.remove('mob-open')
   const ov=$('sbOverlay'); if(ov)ov.classList.remove('show')
 }
 ;(()=>{
