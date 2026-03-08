@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: attendx-pro
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --timeout 120 --workers 1 --threads 8 --bind 0.0.0.0:$PORT
+    healthCheckPath: /ping
+    envVars:
+      - key: RENDER
+        value: "true"
+      - key: DATABASE_PATH
+        value: /data/attendx.db
+    disk:
+      name: attendx-data
+      mountPath: /data
+      sizeGB: 1
