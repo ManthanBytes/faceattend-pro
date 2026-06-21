@@ -326,6 +326,15 @@ body.dark .sb-theme-btn{background:#334155;border-color:#475569}
         </div>
         <div class="err" id="lErr"></div>
         <button class="btn btn-blue btn-w" onclick="doLogin()">Sign In →</button>
+        <div class="demo-box">
+          <b>🧪 Demo Admin Login</b><br>
+          Email: <b>admin@college.edu</b><br>
+          Password: <b>admin@123</b><br>
+          <button type="button" class="btn btn-out btn-sm" style="margin-top:8px;width:100%" onclick="fillDemoAdmin()">⚡ Fill Admin Demo Login</button>
+        </div>
+        <div style="text-align:center;font-size:12px;color:var(--ink3);margin-top:10px">
+          New student? <a href="#" onclick="switchTab('r');return false;" style="color:var(--blue);font-weight:600;text-decoration:none">Register here →</a>
+        </div>
       </div>
       <div id="fmR" style="display:none">
         <div class="fg"><label class="fl">I am a</label>
@@ -357,6 +366,9 @@ body.dark .sb-theme-btn{background:#334155;border-color:#475569}
         </div>
         <div class="err" id="rErr"></div>
         <button class="btn btn-green btn-w" onclick="doRegister()">Create Account →</button>
+        <div style="text-align:center;font-size:12px;color:var(--ink3);margin-top:10px">
+          Already have an account? <a href="#" onclick="switchTab('l');return false;" style="color:var(--blue);font-weight:600;text-decoration:none">Sign in here →</a>
+        </div>
       </div>
     </div>
   </div>
@@ -949,6 +961,14 @@ function pBar(p){ return `<div class="pbar"><div class="pbar-fill" style="width:
 const getDN=id=>(allDivs.find(d=>d.id===id)||{}).name||'—'
 const getDeptN=id=>(allDepts.find(d=>d.id===id)||{}).name||'—'
 const myActiveSess=()=>CU?allSessions.find(s=>s.active&&s.teacher_id===CU.id)||null:null
+
+// ── DEMO LOGIN HELPER ───────────────────────────────────────
+function fillDemoAdmin(){
+  sv('lRole','admin')
+  sv('lEm','admin@college.edu')
+  sv('lPw','admin@123')
+  toast('Demo admin credentials filled — click Sign In','info')
+}
 
 // ── BOOT ──────────────────────────────────────────────────────
 async function bootApp(){
