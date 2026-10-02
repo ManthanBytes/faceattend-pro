@@ -4,6 +4,12 @@ from datetime import datetime
 
 app = Flask(__name__)
 
+@app.route('/robots.txt')
+def robots_txt():
+    return """User-agent: *
+Allow: /
+""", 200, {'Content-Type': 'text/plain'}
+
 DATABASE_URL = os.environ.get('DATABASE_URL','')
 if DATABASE_URL:
     import psycopg
