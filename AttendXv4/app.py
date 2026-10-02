@@ -660,8 +660,7 @@ def _keep_alive():
             except: pass
             time.sleep(14*60)
     t=threading.Thread(target=ping,daemon=True); t.start()
-
-if os.environ.get('RENDER') or os.environ.get('VERCEL'): _keep_alive()
+if os.environ.get('RENDER'): _keep_alive()
 
 if __name__=='__main__':
     import socket
