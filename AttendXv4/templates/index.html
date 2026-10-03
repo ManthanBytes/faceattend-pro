@@ -960,13 +960,6 @@ const getDN=id=>(allDivs.find(d=>d.id===id)||{}).name||'—'
 const getDeptN=id=>(allDepts.find(d=>d.id===id)||{}).name||'—'
 const myActiveSess=()=>CU?allSessions.find(s=>s.active&&s.teacher_id===CU.id)||null:null
 
-// ── DEMO LOGIN HELPER ───────────────────────────────────────
-function fillDemoAdmin(){
-  sv('lRole','admin')
-  sv('lEm','admin@college.edu')
-  sv('lPw','admin@123')
-  toast('Demo admin credentials filled — click Sign In','info')
-}
 
 // ── BOOT ──────────────────────────────────────────────────────
 async function bootApp(){
